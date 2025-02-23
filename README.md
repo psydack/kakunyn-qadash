@@ -2,9 +2,12 @@
 
 ## Install
 
-```bash
-pip install plotly
+Download the project
+Open terminal
 
+```bash
+cd kakunyn-qadash
+pip install -r requirements.txt
 ```
 
 ## Running

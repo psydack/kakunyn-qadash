@@ -53,18 +53,14 @@ col4.metric("Failed ❌", fail_cases, f"{(fail_cases / total_cases) * 100:.1f}%"
 status_overall = "In Progress"  # "To Start", "Finished"
 col5.metric("Overall Status", status_overall)
 
-# Category and Subcategory Status
-st.header("📈 Category & Subcategory Status")
-category_status = test_cases.groupby(['Feature Group', 'Subgroup']).apply(
-    lambda x: f"{len(x[x['Status'] != 'In Progress'])}/{len(x)}"
-).reset_index(name='Progress')
-st.dataframe(category_status, use_container_width=True)
-
-# Platform grouping
-st.header("💻 Test Cases by Platform")
+# Category and Subcategory Status by Platform
+st.header("📈 Category & Subcategory Status by Platform")
 if 'Platform' in test_cases.columns:
-    platform_status = test_cases.groupby('Platform').size().reset_index(name='Total Cases')
-    st.dataframe(platform_status, use_container_width=True)
+    category_platform = test_cases.groupby(['Platform', 'Feature Group', 'Subgroup']).size().reset_index(name='Count')
+    fig_category_platform = px.bar(category_platform, x='Subgroup', y='Count', color='Feature Group',
+                                   facet_col='Platform',
+                                   title="Test Cases by Category, Subcategory, and Platform")
+    st.plotly_chart(fig_category_platform, use_container_width=True)
 else:
     st.info("No 'Platform' data available in the test cases.")
 
