@@ -10,3 +10,9 @@ download and open in pycharm
 .\.venv\Scripts\activate.bat
 streamlit run .\app.py
 ```
+
+## Running unit tests
+
+```bash
+pytest tests/test_app.py
+```
