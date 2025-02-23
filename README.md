@@ -2,7 +2,10 @@
 
 ## Install
 
-download and open in pycharm
+```bash
+pip install plotly
+
+```
 
 ## Running
 
