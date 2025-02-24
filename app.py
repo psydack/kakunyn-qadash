@@ -1,81 +1,63 @@
-import hashlib
+# app.py
+import math
+from datetime import datetime
 
-import pandas as pd
-import plotly.express as px
 import streamlit as st
 
-st.set_page_config(page_title="QA Dashboard", layout="wide")
+from metrics.metrics import estimate_completion
+from utils.data_utils import load_data
 
-# Hardcoded Excel file path
-excel_path = 'data/qa_testing_report_mock.xlsx'
 
-@st.cache_data(ttl=60)
-def load_data(file_path):
-    with open(file_path, 'rb') as f:
-        file_hash = hashlib.md5(f.read()).hexdigest()
-    client_data = pd.read_excel(file_path, sheet_name="Client_Stats")
-    test_cases = pd.read_excel(file_path, sheet_name="Test_Cases")
-    return client_data, test_cases, file_hash
+def format_countdown(td):
+    total_seconds = math.ceil(td.total_seconds() / 300) * 300  # round up to nearest 5 min
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    return f"{hours}h {minutes}m"
 
-client_data, test_cases, file_hash = load_data(excel_path)
 
-# Extract project name from Excel for title
-project_name = client_data.loc[client_data['Metric'] == 'Project Name', 'Value'].values[0]
-st.title(f"🎾 QA Testing Dashboard - {project_name}")
+def main():
+    st.set_page_config(page_title="QA Dashboard", layout="wide")
 
-# Sidebar - Project Info
-st.sidebar.header("📌 Project Information")
-for _, row in client_data.iterrows():
-    st.sidebar.write(f"**{row['Metric']}:** {row['Value']}")
+    excel_path = 'data/qa_testing_report_mock.xlsx'
+    client_data, test_cases, _ = load_data(excel_path)
 
-# Additional project information
-st.sidebar.write("**Technical Lead:** John Doe")
-st.sidebar.write("**Test Start Time:** 09:00 AM")
-st.sidebar.write("**Test End Time:** 06:00 PM")
+    project_name = client_data.loc[client_data['Metric'] == 'Project Name', 'Value'].values[0]
+    version = client_data.loc[client_data['Metric'] == 'Version', 'Value'].values[0]
+    platform = client_data.loc[client_data['Metric'] == 'Platform', 'Value'].values[0]
 
-# Display file hash
-st.sidebar.caption(f"File hash: {file_hash}")
+    estimated_completion = estimate_completion(test_cases)
+    countdown = estimated_completion - datetime.now()
 
-# Main metrics
-st.header("🚦 Overall Test Status")
-total_cases = len(test_cases)
-executed_cases = len(test_cases[test_cases['Status'] != 'In Progress'])
-pass_cases = len(test_cases[test_cases['Status'] == 'Pass'])
-fail_cases = len(test_cases[test_cases['Status'] == 'Fail'])
+    bugs_by_severity = test_cases[test_cases['Status'] == 'Fail']['Bug Severity'].value_counts().reset_index()
+    bugs_by_severity.columns = ['Severity', 'Count']
 
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Total Cases", total_cases)
-col2.metric("Executed Cases", executed_cases, f"{(executed_cases / total_cases) * 100:.1f}%")
-col3.metric("Passed ✅", pass_cases, f"{(pass_cases / total_cases) * 100:.1f}%")
-col4.metric("Failed ❌", fail_cases, f"{(fail_cases / total_cases) * 100:.1f}%")
+    st.sidebar.header("📌 Project Information")
+    st.sidebar.write(f"**Project Name:** {project_name}")
+    st.sidebar.write(f"**Version:** {version} - buildversion #1234")
+    st.sidebar.write(f"**Platform:** {platform}")
+    st.sidebar.write(f"**Estimated Completion:** {estimated_completion.strftime('%Y-%m-%d %H:%M')}")
+    st.sidebar.write(f"**Countdown to finish:** {format_countdown(countdown)}")
+    st.sidebar.write("**Responsible:** John Doe")
 
-# Test status overall
-status_overall = "In Progress"  # "To Start", "Finished"
-col5.metric("Overall Status", status_overall)
+    st.sidebar.header("🐞 Bugs by Severity")
+    for _, row in bugs_by_severity.iterrows():
+        st.sidebar.write(f"**{row['Severity']}:** {row['Count']}")
 
-# Category and Subcategory Status by Platform
-st.header("📈 Category & Subcategory Status by Platform")
-if 'Platform' in test_cases.columns:
-    category_platform = test_cases.groupby(['Platform', 'Feature Group', 'Subgroup']).size().reset_index(name='Count')
-    fig_category_platform = px.bar(category_platform, x='Subgroup', y='Count', color='Feature Group',
-                                   facet_col='Platform',
-                                   title="Test Cases by Category, Subcategory, and Platform")
-    st.plotly_chart(fig_category_platform, use_container_width=True)
-else:
-    st.info("No 'Platform' data available in the test cases.")
+    st.sidebar.page_link("pages/overall.py", label="Overall")
+    st.sidebar.page_link("pages/bug_details.py", label="Bug Details")
 
-# Feature Group Progress
-st.header("🔍 Feature Group Progress")
-group_filter = st.selectbox("Select Feature Group", test_cases['Feature Group'].unique())
-group_data = test_cases[test_cases['Feature Group'] == group_filter]
+    st.title("📌 Project Information")
+    st.write(f"**Project Name:** {project_name}")
+    st.write(f"**Version:** {version} - buildversion #1234")
+    st.write(f"**Platform:** iOS, Android")
+    st.write(f"**Estimated Completion:** {estimated_completion.strftime('%Y-%m-%d %H:%M')}")
+    st.write(f"**Countdown to finish:** {format_countdown(countdown)}")
+    st.write("**Responsible:** John Doe")
 
-subgroup_status = group_data.groupby(['Subgroup', 'Status']).size().reset_index(name='Count')
-fig_subgroup = px.bar(subgroup_status, x='Subgroup', y='Count', color='Status', barmode='stack',
-                      title=f"Progress by Subgroup - {group_filter}")
-st.plotly_chart(fig_subgroup, use_container_width=True)
+    st.subheader("🐞 Total Bugs by Severity")
+    for _, row in bugs_by_severity.iterrows():
+        st.write(f"**{row['Severity']}:** {row['Count']}")
 
-# Detailed Bug Report with mock links
-st.header("🐞 Bug Details")
-bugs = test_cases[test_cases['Status'] == 'Fail'][['Test Case ID', 'Subgroup', 'Bug Severity', 'Bug Description']]
-bugs['Issue Link'] = bugs['Test Case ID'].apply(lambda x: f"[Open Issue](https://kakunyn.atlassian.net/jira/{x})")
-st.dataframe(bugs, use_container_width=True)
+
+if __name__ == '__main__':
+    main()
